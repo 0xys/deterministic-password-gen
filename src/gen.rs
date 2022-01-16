@@ -33,7 +33,7 @@ impl<'a> PasswordGenerator<'a> {
             nonce += 1;
     
             loop {
-                let result = self.next_from_word(&next_word, current_offset);
+                let result = next_from_word(&next_word, current_offset, self.max_index, self.mask, self.mask_size);
                 if result.is_err() {
                     break;  // consumed full word
                 }
@@ -45,31 +45,29 @@ impl<'a> PasswordGenerator<'a> {
             }
         }
     }
+}
 
-    /// get next character from word.
-    /// 
-    /// returning `next_offset` and `next_character`
-    fn next_from_word(&self, word: &[u8;32], offset: usize) -> Result<(usize, u8), CharacterGenerationError> {
-        let mut next_offset = 0;
-        let mut next_character: u8 = 0;
-        let mut found = false;
-        for i in offset..word.len() {
-            let (found_at, value_at) = next_from_single_char(word[i], self.max_index, self.mask, self.mask_size);
-            if !found && found_at {
-                next_offset = i + 1;
-                next_character = value_at;
-                found = true;
-            }
+/// get next character from word.
+/// 
+/// returning `next_offset` and `next_character`
+fn next_from_word(word: &[u8;32], offset: usize, max_index: u8, mask: u8, mask_size: usize) -> Result<(usize, u8), CharacterGenerationError> {
+    let mut next_offset = 0;
+    let mut next_character: u8 = 0;
+    let mut found = false;
+    for i in offset..word.len() {
+        let (found_at, value_at) = next_from_single_char(word[i], max_index, mask, mask_size);
+        if !found && found_at {
+            next_offset = i + 1;
+            next_character = value_at;
+            found = true;
         }
-
-        if found {
-            return Ok((next_offset, next_character));
-        }
-
-        Err(CharacterGenerationError::ConsumedFullWordError)
     }
 
+    if found {
+        return Ok((next_offset, next_character));
+    }
 
+    Err(CharacterGenerationError::ConsumedFullWordError)
 }
 
 /// try get next character from a single u8 char.
@@ -470,5 +468,170 @@ fn test_single_byte_8(){
         let (found, value) = next_from_single_char(byte, max, mask, mask_size);
         assert_eq!(false, found);
         assert_eq!(0, value);
+    }
+}
+
+#[test]
+fn test_word_trivial_case(){
+    let word = [0u8; 32];
+    let offset = 0;
+    let max_index = 0;
+    let mask = 1;
+    let mask_size = 1;
+    let result = next_from_word(&word, offset, max_index, mask, mask_size);
+
+    assert_eq!(true, result.is_ok());
+
+    let (next_offset, character) = result.unwrap();
+    assert_eq!(1, next_offset);
+    assert_eq!(0, character);
+}
+
+#[test]
+fn test_word_trivial_0(){
+    {
+        let word = [0u8; 32];
+        let offset = 20;
+        let max_index = 0;
+        let mask = 1;
+        let mask_size = 1;
+        let result = next_from_word(&word, offset, max_index, mask, mask_size);
+    
+        assert_eq!(true, result.is_ok());
+    
+        let (next_offset, character) = result.unwrap();
+        assert_eq!(21, next_offset);
+        assert_eq!(0, character);
+    }
+    
+    {
+        let word = [0u8; 32];
+        let offset = 30;
+        let max_index = 0;
+        let mask = 1;
+        let mask_size = 1;
+        let result = next_from_word(&word, offset, max_index, mask, mask_size);
+    
+        assert_eq!(true, result.is_ok());
+    
+        let (next_offset, character) = result.unwrap();
+        assert_eq!(31, next_offset);
+        assert_eq!(0, character);
+    }
+
+    {
+        let word = [0u8; 32];
+        let offset = 31;
+        let max_index = 0;
+        let mask = 1;
+        let mask_size = 1;
+        let result = next_from_word(&word, offset, max_index, mask, mask_size);
+    
+        assert_eq!(true, result.is_ok());
+    
+        let (next_offset, character) = result.unwrap();
+        assert_eq!(32, next_offset);
+        assert_eq!(0, character);
+    }
+
+    {
+        let word = [0u8; 32];
+        let offset = 32;
+        let max_index = 0;
+        let mask = 1;
+        let mask_size = 1;
+        let result = next_from_word(&word, offset, max_index, mask, mask_size);
+    
+        assert_eq!(true, result.is_err());
+    }
+}
+
+#[test]
+fn test_word_case_0(){
+    {
+        let mut word = [0xffu8; 32];    // all 0xff
+        word[8] = 10;
+
+        let offset = 0;
+        let max_index = 10;
+        let mask = 0b_1111;
+        let mask_size = 3;
+        let result = next_from_word(&word, offset, max_index, mask, mask_size);
+    
+        assert_eq!(true, result.is_ok());
+    
+        let (next_offset, character) = result.unwrap();
+        assert_eq!(9, next_offset);
+        assert_eq!(10, character);
+    }
+
+    {
+        let mut word = [0xffu8; 32];    // all 0xff
+        word[8] = 0b_1110_1111;
+
+        let offset = 0;
+        let max_index = 0b_1110;
+        let mask = 0b_1111;
+        let mask_size = 4;
+        let result = next_from_word(&word, offset, max_index, mask, mask_size);
+    
+        assert_eq!(true, result.is_ok());
+    
+        let (next_offset, character) = result.unwrap();
+        assert_eq!(9, next_offset);
+        assert_eq!(0b_1110, character);
+    }
+
+    {
+        let mut word = [0xffu8; 32];    // all 0xff
+        word[8] = 0b_1110_1111;
+        word[31] = 0b_1110_1111;
+
+        let offset = 8;
+        let max_index = 0b_1110;
+        let mask = 0b_1111;
+        let mask_size = 4;
+        let result = next_from_word(&word, offset, max_index, mask, mask_size);
+    
+        assert_eq!(true, result.is_ok());
+    
+        let (next_offset, character) = result.unwrap();
+        assert_eq!(9, next_offset);
+        assert_eq!(0b_1110, character);
+    }
+
+    {
+        let mut word = [0xffu8; 32];    // all 0xff
+        word[8] = 0b_1110_1111;
+        word[31] = 0b_1110_1111;
+
+        let offset = 9;
+        let max_index = 0b_1110;
+        let mask = 0b_1111;
+        let mask_size = 4;
+        let result = next_from_word(&word, offset, max_index, mask, mask_size);
+    
+        assert_eq!(true, result.is_ok());
+    
+        let (next_offset, character) = result.unwrap();
+        assert_eq!(32, next_offset);
+        assert_eq!(0b_1110, character);
+    }
+
+    {
+        let mut word = [0xffu8; 32];    // all 0xff
+        word[8] = 0b_1110_1111;
+
+        let offset = 3;
+        let max_index = 0b_101;
+        let mask = 0b_0111;
+        let mask_size = 3;
+        let result = next_from_word(&word, offset, max_index, mask, mask_size);
+    
+        assert_eq!(true, result.is_ok());
+    
+        let (next_offset, character) = result.unwrap();
+        assert_eq!(9, next_offset);
+        assert_eq!(0b_0101, character);
     }
 }

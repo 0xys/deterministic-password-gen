@@ -1,4 +1,6 @@
 pub mod gen;
+pub mod pwd;
+pub mod alphabet;
 
 #[cfg(test)]
 mod tests {

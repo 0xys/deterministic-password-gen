@@ -544,6 +544,28 @@ fn test_word_trivial_0(){
     
         assert_eq!(true, result.is_err());
     }
+
+    {
+        let word = [0xffu8; 32];
+        let offset = 0;
+        let max_index = 0;
+        let mask = 1;
+        let mask_size = 1;
+        let result = next_from_word(&word, offset, max_index, mask, mask_size);
+    
+        assert_eq!(true, result.is_err());
+    }
+
+    {
+        let word = [0xffu8; 32];
+        let offset = 0;
+        let max_index = 0b_0010;
+        let mask = 0b_0011;
+        let mask_size = 2;
+        let result = next_from_word(&word, offset, max_index, mask, mask_size);
+    
+        assert_eq!(true, result.is_err());
+    }
 }
 
 #[test]
